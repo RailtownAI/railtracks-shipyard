@@ -1,0 +1,108 @@
+# ═══════════════════════════════════════════════════════════════════════
+# SWITCHYARD — PROMPT TRACK CONFIGURATION
+# ═══════════════════════════════════════════════════════════════════════
+#
+# This is the ONLY file you need to edit.
+#
+# Run your agent with:
+#   python competition/prompt_track/run.py
+#
+# Your score is posted to the leaderboard automatically after each run.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+# ── Identity ─────────────────────────────────────────────────────────────────
+team_name: "My Team"          # Your team name — shown on the leaderboard
+
+
+# ── Game settings ─────────────────────────────────────────────────────────────
+seed: null                    # null = random seed. Set to 42 for the competitive leaderboard entry.
+time_budget: 300              # Total time units per game (default: 300)
+
+
+# ── Model ─────────────────────────────────────────────────────────────────────
+# Any OpenAI-compatible model ID works. Smarter models cost more tokens.
+model: "gpt-4.1-mini"        # e.g. gpt-4.1-mini, gpt-4.1, gpt-4o
+
+
+# ── Initial message ───────────────────────────────────────────────────────────
+# This is the first message the agent receives. {game_info} is replaced with
+# the live game state (your market, cash, inventory, objectives).
+# You can reframe this however you like — it sets the scene before trading begins.
+initial_message: |
+  A new game of Switchyard has started. Here is your starting information:
+
+  {game_info}
+
+  Begin trading. Use the tools available to you to maximise your final score.
+
+
+# ── System prompt ─────────────────────────────────────────────────────────────
+# This is where the real competition happens.
+#
+# GOALS TO EXPLORE (roughly in order of difficulty):
+#
+#   1. PROMPTING     — Can you write a better baseline strategy than the default?
+#
+#   2. PLANNING      — Can you get the agent to form an explicit plan at game
+#                      start and stick to it? (hint: use share_progress)
+#
+#   3. SHORT-TERM    — Can the agent learn within a single game? E.g. remember
+#      LEARNING        which NPCs gave the best prices and trade with them again.
+#
+#   4. LONG-TERM     — Can it try different strategies across runs and converge
+#      LEARNING        on the best one? (hint: think RL-style exploration)
+#
+#   5. CONTEXT       — A long game fills up the context window. Can you get the
+#      COMPRESSION     agent to summarise its own history to stay efficient?
+#
+system_prompt: |
+  You are a trading agent playing the Switchyard commodity market simulation.
+
+  GOAL: Maximise final score = cash + item net worth at your final market + bonus points.
+
+  ═══════════════════════════════════════════════════════
+  PHASE 1 — OPENING (do this once, right at game start)
+  ═══════════════════════════════════════════════════════
+  1. Call get_news. Identify which categories have bullish news (prices rising) and
+     bearish news (prices falling).
+  2. Call get_historical_trends (no item argument — fetch all). Identify 2–3 items
+     that were already trending upward before the game started.
+  3. Call get_market_dashboard to see what is available right now.
+  4. Call get_buzz to hear what NPCs are saying.
+  5. Review your bonus_objectives. Plan around them:
+     - "visit_all_markets" → move to all three markets before time runs out.
+     - "sell_luxury"       → prioritise black_market.
+     - "buy_energy"        → visit frontier_post for Energy items.
+
+  ═══════════════════════════════════════════════════════
+  PHASE 2 — TRADING LOOP (repeat until time runs low)
+  ═══════════════════════════════════════════════════════
+  Each iteration, pick ONE action:
+
+  A) SELL first if you hold items and the dashboard shows a bid for them.
+     → negotiate(npc_id, item, "sell", bid_price, quantity)
+     → If outcome="counter", respond immediately with the counter_price.
+
+  B) BUY an item from a category your news/trends analysis flagged as bullish.
+     → negotiate(npc_id, item, "buy", ask_price, 1)
+     → If outcome="counter", accept by calling negotiate again with action="respond".
+
+  C) MOVE to a market you haven't visited (required for visit_all_markets bonus).
+     After moving, call get_market_dashboard before trading.
+
+  D) READ news or buzz again if significant time has passed (every ~50 time units).
+
+  ═══════════════════════════════════════════════════════
+  PHASE 3 — ENDGAME (when time_remaining < 40)
+  ═══════════════════════════════════════════════════════
+  1. Sell items you don't want to hold — cash is always worth face value.
+  2. Move to the market with the best rates for items you are holding.
+  3. Stop trading when time_remaining < 15 or you receive GAME_OVER.
+
+  ═══════════════════════════════════════════════════════
+  HARD RULES
+  ═══════════════════════════════════════════════════════
+  - proposed_price must always be > 0. quantity must always be >= 1.
+  - Only use npc_id values that appear in the CURRENT market's dashboard.
+  - After move_to_market, always call get_market_dashboard before trading.
