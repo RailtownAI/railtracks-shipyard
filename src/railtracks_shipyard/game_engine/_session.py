@@ -19,8 +19,8 @@ from ._npc import NPC
 from ._price_engine import PriceEngine
 
 # Target total starting portfolio value (cash + items at baseline)
-_TARGET_START_VALUE = 300.0
-_MIN_CASH = 60.0
+_TARGET_START_VALUE = 1000.0
+_MIN_CASH = 200.0
 # How many bonus objectives to select per game
 _NUM_OBJECTIVES = 3
 
@@ -69,8 +69,9 @@ class GameSession:
         self.action_log: list[dict] = []
         self.pending_negotiations: dict[tuple[str, str], PendingNegotiation] = {}
 
-        # Shock schedule: mechanical params pre-seeded, text generated on-demand
+        # Shock and buzz schedules: params pre-seeded, text generated on-demand
         self.shock_schedule: list[dict] = []
+        self.buzz_schedule: list[dict] = []
         # On-demand LLM content buffers
         self.available_news: list[dict] = []   # accumulates; never cleared
         self.available_buzz: list[dict] = []   # cleared after each get_buzz call
@@ -203,7 +204,7 @@ def build_starting_inventory(
         for item in chosen:
             qty = rng.randint(1, 4)
             inventory[item] = qty
-            item_value += qty * ITEM_CATALOG[item].baseline_price
+            item_value += qty * price_engine.get_market_rate(item)
 
         cash = round(_TARGET_START_VALUE - item_value, 2)
         if cash >= _MIN_CASH:

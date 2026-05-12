@@ -10,7 +10,6 @@ Failed calls consume no time (except negotiate, which charges for rounds played)
 """
 from __future__ import annotations
 
-import math
 import random
 from typing import Optional
 
@@ -27,7 +26,6 @@ from ._models import (
 from ._npc import negotiate_round_for_item
 from ._session import GameSession, PendingNegotiation
 
-_BUZZ_RATE = 0.05  # exponential rate: avg one buzz event per 40 time units
 
 
 # ── Response helpers ──────────────────────────────────────────────────────────
@@ -86,13 +84,14 @@ def _consume_time(session: GameSession, low: int, high: int) -> int:
     for npc in session.npcs:
         npc.refresh_prices(rates, session.rng)
 
-    # Exponential RV buzz trigger
-    if session.rng.random() < 1 - math.exp(-_BUZZ_RATE * cost):
-        buzz_seed = session.rng.randint(0, 2**31)
-        future = generate_buzz_async(
-            session.current_market, session.npcs, rates, buzz_seed, session.game_clock
-        )
-        session._pending_futures.append(("buzz", future, {}))
+    # Pre-computed buzz schedule
+    for buzz_event in session.buzz_schedule:
+        if old_clock < buzz_event["game_time"] <= session.game_clock:
+            future = generate_buzz_async(
+                session.current_market, session.npcs, rates,
+                buzz_event["buzz_seed"], session.game_clock,
+            )
+            session._pending_futures.append(("buzz", future, {}))
 
     # Drain any completed LLM futures so the dashboard always sees fresh content
     session.collect_ready_content()
@@ -302,7 +301,7 @@ def get_time_remaining(session: GameSession) -> dict:
     if session.time_remaining <= 0:
         return _game_over(session)
 
-    cost = _consume_time(session, 1, 2)
+    cost = 0
     session.log_action("get_time_remaining", {}, cost)
     return _ok(session, {
         "time_remaining": session.time_remaining,
@@ -600,6 +599,15 @@ def wait(session: GameSession, duration: int) -> dict:
     rates = session.price_engine.get_all_rates()
     for npc in session.npcs:
         npc.refresh_prices(rates, session.rng)
+
+    # Pre-computed buzz schedule
+    for buzz_event in session.buzz_schedule:
+        if old_clock < buzz_event["game_time"] <= session.game_clock:
+            future = generate_buzz_async(
+                session.current_market, session.npcs, rates,
+                buzz_event["buzz_seed"], session.game_clock,
+            )
+            session._pending_futures.append(("buzz", future, {}))
 
     # Build a brief market summary by checking how primary items moved
     primary_cats = MARKET_PRIMARY_CATEGORIES.get(session.current_market, [])

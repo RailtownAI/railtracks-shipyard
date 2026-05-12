@@ -18,6 +18,7 @@ TODO before production:
 """
 from __future__ import annotations
 
+import json
 import threading
 import time
 from pathlib import Path
@@ -30,6 +31,23 @@ from pydantic import BaseModel, Field
 
 _HERE = Path(__file__).parent
 _COMPETITIVE_SEED = 42
+_SCORES_FILE = _HERE / "scores.json"
+
+
+def _load_scores() -> dict[str, list[dict]]:
+    if _SCORES_FILE.exists():
+        try:
+            with open(_SCORES_FILE) as f:
+                data = json.load(f)
+            return {"prompt": data.get("prompt", []), "code": data.get("code", [])}
+        except Exception:
+            pass
+    return {"prompt": [], "code": []}
+
+
+def _save_scores() -> None:
+    with open(_SCORES_FILE, "w") as f:
+        json.dump(_store, f, indent=2)
 
 app = FastAPI(title="Switchyard Leaderboard", docs_url=None, redoc_url=None)
 
@@ -58,7 +76,7 @@ class ScoreSubmission(BaseModel):
 # ── In-memory store ───────────────────────────────────────────────────────────
 
 _lock = threading.Lock()
-_store: dict[str, list[dict]] = {"prompt": [], "code": []}
+_store: dict[str, list[dict]] = _load_scores()
 
 
 # ── API endpoints ─────────────────────────────────────────────────────────────
@@ -75,9 +93,8 @@ def submit_score(payload: ScoreSubmission) -> dict:
         "submitted_at": time.time(),
     }
     with _lock:
-        track = _store[payload.track]
-        
-        track.append(entry)
+        _store[payload.track].append(entry)
+        _save_scores()
     return {"ok": True, "action": "added"}
 
 

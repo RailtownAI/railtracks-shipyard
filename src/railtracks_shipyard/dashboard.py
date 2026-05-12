@@ -21,6 +21,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from .game_engine._models import ITEM_CATALOG, MARKET_PRIMARY_CATEGORIES
+
 if TYPE_CHECKING:
     from .game_engine import SwitchyardEngine
 
@@ -99,13 +101,15 @@ class GameDashboard:
             Layout(name="objectives", size=7),
         )
         root["right"].split_column(
-            Layout(name="actions", ratio=1),
-            Layout(name="feed",    ratio=1),
+            Layout(name="prices",  ratio=3),
+            Layout(name="actions", ratio=2),
+            Layout(name="feed",    ratio=2),
         )
 
         root["header"].update(self._header(session))
         root["state"].update(self._state_panel(session))
         root["inventory"].update(self._inventory_panel(session))
+        root["prices"].update(self._prices_panel(session))
         root["score"].update(self._score_panel(session))
         root["objectives"].update(self._objectives_panel(session))
         root["actions"].update(self._actions_panel(session))
@@ -168,6 +172,60 @@ class GameDashboard:
             tbl.add_row("[dim]empty[/dim]", "", "", "")
 
         return Panel(tbl, title="[bold]INVENTORY[/bold]", box=box.SIMPLE_HEAD)
+
+    def _prices_panel(self, session) -> Panel:
+        primary_cats = set(MARKET_PRIMARY_CATEGORIES.get(session.current_market, []))
+        rates = session.price_engine.get_all_rates()
+
+        def _row(item, cfg):
+            rate = rates.get(item, cfg.baseline_price)
+            history = session.price_engine.get_history(item)
+            if len(history) >= 2:
+                delta = history[-1]["price"] - history[-2]["price"]
+                if delta > cfg.baseline_price * 0.01:
+                    trend, tcol = "▲", "green"
+                elif delta < -cfg.baseline_price * 0.01:
+                    trend, tcol = "▼", "red"
+                else:
+                    trend, tcol = "─", "dim"
+            else:
+                trend, tcol = "─", "dim"
+            return (item.value.replace("_", " "), f"${rate:.1f}", trend, tcol,
+                    cfg.category in primary_cats)
+
+        rows = [_row(i, c) for i, c in ITEM_CATALOG.items()]
+
+        mid = (len(rows) + 1) // 2
+        left_col, right_col = rows[:mid], rows[mid:]
+
+        tbl = Table(box=None, show_header=True, header_style="bold dim",
+                    padding=(0, 1), expand=True)
+        for _ in range(2):
+            tbl.add_column("Item",  style="white",   ratio=3)
+            tbl.add_column("Rate",  justify="right",  ratio=2)
+            tbl.add_column("",      justify="left",   ratio=1, no_wrap=True)
+
+        for i, (name, rate_str, trend, tcol, primary) in enumerate(left_col):
+            fmt = "bold" if primary else "dim"
+            name_l  = f"[{fmt}]{name}[/{fmt}]"
+            rate_l  = f"[{fmt}]{rate_str}[/{fmt}]"
+            trend_l = f"[{tcol}]{trend}[/{tcol}]"
+            if i < len(right_col):
+                rn, rr, rt, rc, rp = right_col[i]
+                rfmt = "bold" if rp else "dim"
+                tbl.add_row(name_l, rate_l, trend_l,
+                            f"[{rfmt}]{rn}[/{rfmt}]",
+                            f"[{rfmt}]{rr}[/{rfmt}]",
+                            f"[{rc}]{rt}[/{rc}]")
+            else:
+                tbl.add_row(name_l, rate_l, trend_l, "", "", "")
+
+        market = session.current_market.value
+        color = _MARKET_COLORS.get(market, "white")
+        return Panel(tbl,
+                     title=f"[bold]PRICES[/bold] [dim](bold = {market})[/dim]",
+                     border_style=color,
+                     box=box.SIMPLE_HEAD)
 
     def _score_panel(self, session) -> Panel:
         cash = round(session.cash, 2)

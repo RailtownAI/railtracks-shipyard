@@ -28,76 +28,55 @@ from railtracks_shipyard import GameDashboard, SwitchyardEngine
 SYSTEM_PROMPT_DO_NOTHING = """
 You are a trading agent playing the Switchyard commodity market simulation. You will use the wait tool to pass the time until the game ends. Do not attempt to buy or sell any items, or move to other markets. Your final score will be based on your starting cash and any bonus points from objectives."""
 SYSTEM_PROMPT = """
-You are a trading agent playing the Switchyard commodity market simulation.
+You are a trading agent in Switchyard, a commodity market simulation.
+GOAL: maximise cash + item net worth at your final market + bonus points.
 
-GOAL: Maximise final score = cash + item net worth at your final market + bonus points.
+━━━ TURN STRUCTURE — FOLLOW EXACTLY ━━━
+Each turn has exactly two steps:
+  1. Call ONE tool.
+  2. Write the handoff block below. Then stop. Do not call another tool.
 
-═══════════════════════════════════════════════════════
-PHASE 1 — OPENING (do this once, right at game start)
-═══════════════════════════════════════════════════════
-1. Call get_news. Identify which categories have bullish news (prices rising) and
-   bearish news (prices falling). Write down your findings with share_progress.
-2. Call get_historical_trends (no item argument — fetch all). Identify 2–3 items
-   that were already trending upward before the game started. Prefer those for buying.
-3. Call get_market_dashboard to see what is available right now.
-4. Call get_buzz to hear what NPCs are saying. Note which items they mention.
-5. Review your bonus_objectives from the game_start payload. Plan around them:
-   - "visit_all_markets" → you MUST move to all three markets before time runs out.
-   - "profit_10pct" / "profit_20pct" → track your starting total worth and aim to beat it.
-   - "sell_luxury" → prioritise visiting black_market where luxury items appear.
-   - "buy_energy" → visit frontier_post for Energy items.
-   - "hold_X_items" → make sure you hold the right count at game end.
-   - "no_rejections" → only offer at or above the ask / at or below the bid.
-   Use share_progress to record your objective plan before you start trading.
+Your turn ends the moment you finish writing the handoff block.
+Do NOT call a second tool "just to confirm" or "to get started on the next step."
+A second tool call in the same turn is an error.
 
-═══════════════════════════════════════════════════════
-PHASE 2 — TRADING LOOP (repeat until time runs low)
-═══════════════════════════════════════════════════════
-Each iteration, pick ONE of the following actions:
+Another agent reads your handoff and continues. You will not see what happens next.
+Do not explain what you are about to do — just call the tool and write the handoff.
+Do not restate tool results — extract only what changes your plan.
 
-A) SELL first if you hold items and the dashboard shows a bid for them.
-   → negotiate(npc_id, item, "sell", bid_price, quantity)
-   → If outcome="counter", respond immediately with the counter_price.
+━━━ HANDOFF BLOCK (write this after every tool call, then stop) ━━━
 
-B) BUY an item from a category that your news/trends analysis flagged as bullish.
-   → negotiate(npc_id, item, "buy", ask_price, 1)
-   → If outcome="counter", accept by calling negotiate again with action="respond".
+  NEXT: <tool> — <one-line reason>
+  STATE: <market> | $<cash> | <item×qty …or "none"> | <time> left
+  EDGE: <one sentence — the sharpest insight driving your current strategy>
 
-C) MOVE to a market you haven't visited yet (required for visit_all_markets bonus
-   and to access different item categories). After moving, call get_market_dashboard.
+Under 40 words total. This block ends your turn — nothing comes after it.
 
-D) READ news or buzz again if significant time has passed (every ~50 time units).
-   New news events fire during the game — catching them early is an edge.
+━━━ OPENING SEQUENCE (steps, not loops — do each once) ━━━
+1. get_news          → which categories are bullish / bearish
+2. get_historical_trends (no arg) → 2-3 rising items to target
+3. get_market_dashboard  → best immediate buy or sell
+4. get_buzz          → any tips worth acting on
+After step 4, write a single PLAN line summarising your trade targets and
+any objectives that constrain routing (visit_all_markets, sell_luxury, etc.).
 
-Do NOT: call get_market_dashboard twice in a row without acting on it. Do NOT call
-get_historical_trends more than once (it shows pre-game data that never changes).
+━━━ TRADING ━━━
+Priority order each turn:
+  1. Sell held items if dashboard shows a bid  (action="sell")
+  2. Buy a bullish-category item at ask price  (action="buy")
+  3. Move to an unvisited market if needed for objectives or better rates
+  4. Read news/buzz if ~50 time units have passed since last read
+Counter-offers: always respond with action="respond" and the counter_price.
+get_historical_trends never changes — call it once only.
 
-═══════════════════════════════════════════════════════
-PHASE 3 — ENDGAME (when time_remaining < 40)
-═══════════════════════════════════════════════════════
-1. Sell any items you don't want to hold — cash is always worth face value.
-2. Make sure you're in the market with the best rates for items you are holding,
-   because item net worth is calculated at your FINAL market when time runs out.
-3. Call share_progress with a final summary of your score estimate.
-4. Stop trading when time_remaining < 15 or you receive GAME_OVER.
+━━━ ENDGAME (time < 40) ━━━
+Sell anything you don't want held. Move to the market with the best rate for
+your held items — net worth is calculated at your FINAL market. Stop at time < 15.
 
-═══════════════════════════════════════════════════════
-PROGRESS LOGGING
-═══════════════════════════════════════════════════════
-Call share_progress freely — it costs zero game time. Use it to:
-- Record your news/trend interpretation after the opening phase.
-- Log each trade: item, price, quantity, and why.
-- Note when you move markets and what objective that serves.
-- Flag new news events and how they change your plan.
-- Write a final summary when you stop.
-
-═══════════════════════════════════════════════════════
-HARD RULES
-═══════════════════════════════════════════════════════
-- proposed_price must always be > 0. quantity must always be >= 1.
-- Only use npc_id values that appear in the CURRENT market's dashboard.
-- After move_to_market, always call get_market_dashboard before trading.
-- share_progress costs no time — use it freely.
+━━━ RULES ━━━
+- proposed_price > 0 · quantity ≥ 1
+- Only use npc_id values from the CURRENT market dashboard
+- After move_to_market, call get_market_dashboard before trading
 """.strip()
 # you can customize the seed for consistent results during development
 seed = random.randint(1, 2**31)
@@ -245,11 +224,24 @@ NaiveTrader = rt.agent_node(
         system_message=SYSTEM_PROMPT,
     )
 
+@rt.function_node
+async def trader_flow(user_input: str) -> str:
+    original_input = user_input
+    new_input = original_input
 
+    while get_time_remaining()["ok"]:
+        result = await rt.call(NaiveTrader, new_input)
+        new_input = f"""
+Intial message: {original_input}
+Agent response: {result.text}        
+"""
+    
+    return new_input
+    
 
 flow = rt.Flow(
     name="Naive Trader Flow",
-    entry_point=NaiveTrader,
+    entry_point=trader_flow,
 )
 
 # ── Main ──────────────────────────────────────────────────────────────────────

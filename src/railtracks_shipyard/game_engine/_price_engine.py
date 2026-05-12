@@ -121,7 +121,7 @@ class PriceEngine:
         mean_rev = config.mean_reversion_speed * (config.baseline_price - v)
 
         # 2. Cyclical component — period ≈ 200 ticks
-        amplitude = config.baseline_price * 0.04
+        amplitude = config.baseline_price * 0.012
         cycle = amplitude * math.sin(2 * math.pi * clock / 200)
 
         # 3. Random walk

@@ -78,6 +78,19 @@ def _post_score(score: dict) -> None:
         print(f"  ✗ Leaderboard unreachable — score not posted: {e}")
 
 
+def _build_buzz_schedule(seed: int, time_budget: int, num_events: int = 15) -> list[dict]:
+    """Pre-compute buzz fire times using seeded RNG."""
+    rng = random.Random(seed + 2)
+    event_count = min(num_events, max(0, time_budget - 20))
+    if event_count <= 0:
+        return []
+    fire_times = sorted(rng.sample(range(10, time_budget - 10), event_count))
+    return [
+        {"game_time": t, "buzz_seed": rng.randint(0, 2**31)}
+        for t in fire_times
+    ]
+
+
 def _build_shock_schedule(seed: int, time_budget: int, num_events: int = 30) -> list[dict]:
     """Pre-compute mechanical shock params using seeded RNG. No LLM calls."""
     rng = random.Random(seed + 1)
@@ -89,7 +102,7 @@ def _build_shock_schedule(seed: int, time_budget: int, num_events: int = 30) -> 
     for t in fire_times:
         cat = rng.choice(list(Category))
         direction = rng.choice([1.0, -1.0])
-        magnitude = round(rng.uniform(0.06, 0.22), 3)
+        magnitude = round(rng.uniform(0.01, 0.06), 3)
         shocks.append({
             "game_time": t,
             "affected_categories": [cat.value],
@@ -163,10 +176,11 @@ class SwitchyardEngine:
         session.objectives = select_objectives(session.rng)
         print(f"[new_game] Objectives: {[o.id for o in session.objectives]}")
 
-        # Pre-compute shock schedule (timing + magnitude only — text generated on demand)
+        # Pre-compute shock and buzz schedules (text generated on demand)
         session.shock_schedule = _build_shock_schedule(seed, time_budget)
-        print(f"[new_game] {len(session.shock_schedule)} price shocks scheduled"
-              f" (news text generated on demand when each fires)")
+        session.buzz_schedule  = _build_buzz_schedule(seed, time_budget)
+        print(f"[new_game] {len(session.shock_schedule)} price shocks and"
+              f" {len(session.buzz_schedule)} buzz events scheduled")
 
         print("[new_game] Game ready.\n")
         self._session = session
