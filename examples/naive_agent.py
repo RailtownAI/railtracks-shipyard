@@ -18,14 +18,15 @@ Set ANTHROPIC_API_KEY in your environment (or a .env file) before running.
 """
 
 import json
-
+import random
 import railtracks as rt
 
 from railtracks_shipyard import GameDashboard, SwitchyardEngine
 
 
 # ── System prompt ─────────────────────────────────────────────────────────────
-
+SYSTEM_PROMPT_DO_NOTHING = """
+You are a trading agent playing the Switchyard commodity market simulation. You will use the wait tool to pass the time until the game ends. Do not attempt to buy or sell any items, or move to other markets. Your final score will be based on your starting cash and any bonus points from objectives."""
 SYSTEM_PROMPT = """
 You are a trading agent playing the Switchyard commodity market simulation.
 
@@ -98,44 +99,34 @@ HARD RULES
 - After move_to_market, always call get_market_dashboard before trading.
 - share_progress costs no time — use it freely.
 """.strip()
+# you can customize the seed for consistent results during development
+seed = random.randint(1, 2**31)
+engine = SwitchyardEngine()
+
+game_info = engine.new_game(seed=seed, team_name="Logan's Agent Almighty", track="code")
+
+dashboard = GameDashboard(engine)
+dashboard.start()
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
-
-def main(seed: int | None = None, time_budget: int = 300) -> None:
-    """Run one game with the naive agent."""
-
-    # ── 1. Start the game and dashboard ──────────────────────────────────────
-    engine = SwitchyardEngine()
-    game_info = engine.new_game(seed=seed, time_budget=time_budget)
-
-    dashboard = GameDashboard(engine)
-    dashboard.start()
-
-    # ── 2. Wrap every engine method as a railtracks tool ─────────────────────
-    #
-    # The @rt.function_node decorator turns a plain Python function into a
-    # railtracks tool node. Type hints define the parameter schema; the
-    # docstring (Args / Returns sections) is what the LLM reads.
-
-    @rt.function_node
-    def get_score() -> dict:
+@rt.function_node
+def get_score() -> dict:
         """Return the current score: cash, item_worth, bonus_points, total_score.
         Returns:
             Envelope with data.cash, data.item_worth, data.bonus_points, data.total_score.
         """
         return engine.get_score()
 
-    @rt.function_node
-    def get_inventory() -> dict:
+@rt.function_node
+def get_inventory() -> dict:
         """Return cash on hand and all items currently held.
         Returns:
             Envelope with data.cash and data.items (list of {name, quantity, current_market_rate}).
         """
         return engine.get_inventory()
 
-    @rt.function_node
-    def get_market_dashboard() -> dict:
+@rt.function_node
+def get_market_dashboard() -> dict:
         """Return all current asks and bids in your current market.
         Shows the aggregate market_rate per item plus each NPC's individual ask/bid price.
         Use this to find what NPCs are willing to buy and sell, and at what prices.
@@ -145,8 +136,8 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
         """
         return engine.get_market_dashboard()
 
-    @rt.function_node
-    def get_historical_trends(item: str = "") -> dict:
+@rt.function_node
+def get_historical_trends(item: str = "") -> dict:
         """Return pre-game price history for all items, or a single item if specified.
         Args:
             item: Optional item name (e.g. 'prairie_wheat'). Leave empty for all items.
@@ -155,8 +146,8 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
         """
         return engine.get_historical_trends(item if item else None)
 
-    @rt.function_node
-    def get_news() -> dict:
+@rt.function_node
+def get_news() -> dict:
         """Return recent news reports that have affected category prices.
         Reports are factually accurate but require interpretation to determine price direction.
         Returns:
@@ -164,8 +155,8 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
         """
         return engine.get_news()
 
-    @rt.function_node
-    def get_buzz() -> dict:
+@rt.function_node
+def get_buzz() -> dict:
         """Return recent NPC chatter from your current market.
         Reliability varies — some NPCs are honest, some deliberately mislead.
         Returns:
@@ -173,24 +164,24 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
         """
         return engine.get_buzz()
 
-    @rt.function_node
-    def get_move_history() -> dict:
+@rt.function_node
+def get_move_history() -> dict:
         """Return your own action log for this game session.
         Returns:
             Envelope with data.actions (list of {timestamp, type, details, time_consumed}).
         """
         return engine.get_move_history()
 
-    @rt.function_node
-    def get_time_remaining() -> dict:
+@rt.function_node
+def get_time_remaining() -> dict:
         """Return the remaining time budget. Call this to decide when to stop trading.
         Returns:
             Envelope with data.time_remaining, data.time_total, data.time_consumed.
         """
         return engine.get_time_remaining()
 
-    @rt.function_node
-    def negotiate(npc_id: str, item: str, action: str, proposed_price: float, quantity: int) -> dict:
+@rt.function_node
+def negotiate(npc_id: str, item: str, action: str, proposed_price: float, quantity: int) -> dict:
         """Negotiate with an NPC to buy or sell an item.
         Args:
             npc_id: NPC identifier shown on the market dashboard (e.g. 'npc_03').
@@ -209,8 +200,8 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
         """
         return engine.negotiate(npc_id, item, action, proposed_price, quantity)
 
-    @rt.function_node
-    def move_to_market(destination: str) -> dict:
+@rt.function_node
+def move_to_market(destination: str) -> dict:
         """Move to a different market. You can only trade in your current market.
         Markets: 'exchange' (stable, Agriculture & Tech), 'frontier_post' (volatile, Energy),
         'black_market' (high-risk, Luxury & rare Tech).
@@ -221,8 +212,8 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
         """
         return engine.move_to_market(destination)
 
-    @rt.function_node
-    def wait(duration: int) -> dict:
+@rt.function_node
+def wait(duration: int) -> dict:
         """Wait for a specified number of time units. Prices move while you wait.
         Useful for timing entry after a news event. Costs exactly 'duration' time.
         Args:
@@ -231,13 +222,11 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
             Envelope with data.time_consumed, data.time_remaining, data.market_summary.
         """
         return engine.wait(duration)
-    
 
-    # ── 3. Build the railtracks agent ─────────────────────────────────────────
 
-    llm = rt.llm.OpenAILLM("gpt-4.1-mini")
+llm = rt.llm.OpenAILLM("gpt-4.1-mini")
 
-    NaiveTrader = rt.agent_node(
+NaiveTrader = rt.agent_node(
         "Naive Trader",
         tool_nodes=[
             get_score,
@@ -257,10 +246,17 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
     )
 
 
-    flow = rt.Flow(
-        name="Naive Trader Flow",
-        entry_point=NaiveTrader,
-    )
+
+flow = rt.Flow(
+    name="Naive Trader Flow",
+    entry_point=NaiveTrader,
+)
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    """Run one game with the naive agent."""
+    
 
     # ── 4. Run the agent ──────────────────────────────────────────────────────
     initial_message = (
@@ -268,13 +264,14 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
         + json.dumps(game_info, indent=2)
         + "\n\nBegin trading. Use the tools to play the game."
     )
+
     try:
         flow.invoke(initial_message)
     finally:
 
         dashboard.stop()
 
-        score = engine.final_score()
+        score = engine.end_game()
         print("\n" + "=" * 60)
         print("FINAL SCORE")
         print("=" * 60)
@@ -292,4 +289,4 @@ def main(seed: int | None = None, time_budget: int = 300) -> None:
 
 if __name__ == "__main__":
     # Use seed=None for a random game, or seed=42 for a reproducible run.
-    main(seed=None)
+    main()

@@ -48,10 +48,11 @@ class PendingNegotiation:
 class GameSession:
     """All mutable game state for a single run."""
 
-    def __init__(self, seed: int, time_budget: int, team_name: str = "") -> None:
+    def __init__(self, seed: int, time_budget: int, team_name: str = "", track: str = "") -> None:
         self.seed = seed
         self.time_budget = time_budget
         self.team_name = team_name
+        self.track = track
         self.time_consumed: int = 0
         self.game_clock: int = 0
 

@@ -7,6 +7,7 @@ Edit config.yaml instead.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import yaml  # type: ignore
 
@@ -37,7 +38,7 @@ def main() -> None:
 
     # ── Start game ────────────────────────────────────────────────────────────
     engine = SwitchyardEngine()
-    game_info = engine.new_game(seed=seed, time_budget=time_budget, team_name=team_name)
+    game_info = engine.new_game(seed=seed, time_budget=time_budget, team_name=team_name, track="prompt")
     actual_seed: int = game_info.get("seed", 0)
 
     if seed is None:
@@ -171,7 +172,7 @@ def main() -> None:
         flow.invoke(initial_message)
     finally:
         dashboard.stop()
-        score = engine.final_score()
+        score = engine.end_game()
 
         print(f"\n{'='*60}")
         print(f"  FINAL SCORE — {team_name}")

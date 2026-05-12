@@ -14,8 +14,15 @@ Usage:
 """
 from __future__ import annotations
 
+import json
+import os
 import random
-from typing import Optional
+import threading
+import urllib.error
+import urllib.request
+from typing import Literal, Optional
+
+_DATA_ADDRESS = os.getenv("LEADERBOARD_URL", "http://localhost:8000/api/submit")
 
 from ._models import (
     Category,
@@ -40,6 +47,35 @@ from ._tools import (
     negotiate,
     wait,
 )
+
+
+def _post_score(score: dict) -> None:
+    """Fire-and-forget leaderboard submission. Never raises."""
+    url = _DATA_ADDRESS
+    if not score.get("track"):
+        return
+    payload = json.dumps({
+        "team_name":     str(score.get("team_name") or "unnamed"),
+        "seed":          int(score.get("seed") or 0),
+        "track":         score["track"],
+        "cash":          float(score.get("cash") or 0),
+        "item_worth":    float(score.get("item_worth") or 0),
+        "bonus_points":  float(score.get("bonus_points") or 0),
+        "total_score":   float(score.get("total_score") or 0),
+        "time_consumed": int(score.get("time_consumed") or 0),
+        "time_budget":   int(score.get("time_budget") or 300),
+    }).encode()
+    try:
+        req = urllib.request.Request(
+            url, data=payload, headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(req, timeout=5)
+        print("  ✓ Score posted to leaderboard.")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        print(f"  ✗ Server rejected submission ({e.code}): {body}")
+    except Exception as e:
+        print(f"  ✗ Leaderboard unreachable — score not posted: {e}")
 
 
 def _build_shock_schedule(seed: int, time_budget: int, num_events: int = 30) -> list[dict]:
@@ -82,6 +118,7 @@ class SwitchyardEngine:
         seed: Optional[int] = None,
         time_budget: int = 300,
         team_name: str = "",
+        track: Literal["code", "prompt"] = "code",
     ) -> dict:
         """
         Initialise a new game session and return the game_start payload.
@@ -89,7 +126,8 @@ class SwitchyardEngine:
         Args:
             seed: RNG seed. None = random (test mode). Fixed value = competition mode.
             time_budget: Total time units available to the agent.
-
+            team_name: Optional team name for leaderboard submission.
+            track: "code" or "prompt" — for leaderboard categorisation.
         Returns:
             Structured game_start payload delivered to the agent before any actions.
         """
@@ -99,7 +137,7 @@ class SwitchyardEngine:
         print(f"[new_game] seed={seed}  time_budget={time_budget}")
 
         print("[new_game] Initialising game session and price engine...")
-        session = GameSession(seed=seed, time_budget=time_budget, team_name=team_name)
+        session = GameSession(seed=seed, time_budget=time_budget, team_name=team_name, track=track)
 
         # Randomise starting market
         session.current_market = session.rng.choice(list(MarketName))
@@ -178,7 +216,6 @@ class SwitchyardEngine:
         }
 
     # ── Guard helper ──────────────────────────────────────────────────────────
-
     def _require_session(self) -> GameSession:
         if self._session is None:
             raise RuntimeError("No active game. Call new_game() first.")
@@ -230,7 +267,7 @@ class SwitchyardEngine:
 
     # ── Scoring helper (called at game end) ───────────────────────────────────
 
-    def final_score(self) -> dict:
+    def end_game(self) -> dict:
         """
         Compute and return the final score. Intended for game-end use.
         Does not consume time.
@@ -239,17 +276,27 @@ class SwitchyardEngine:
         item_worth = round(session.compute_item_worth(), 2)
         bonus = round(session.compute_bonus_points(), 2)
         cash = round(session.cash, 2)
-        return {
+        score = {
             "cash": cash,
             "item_worth": item_worth,
             "bonus_points": bonus,
             "total_score": round(cash + item_worth + bonus, 2),
+            "time_consumed": session.time_consumed,
+            "time_budget": session.time_budget,
+            "seed": session.seed,
+            "team_name": session.team_name,
+            "track": session.track,
             "objectives": [
                 {"id": o.id, "description": o.description,
                  "points": o.points, "completed": o.completed}
                 for o in session.objectives
             ],
         }
+        _post_score(score,)
+        return score
+    
+
+        
 
 
 # Alias kept for backwards-compatibility with the scaffold

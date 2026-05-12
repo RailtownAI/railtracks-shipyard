@@ -225,7 +225,7 @@ def main() -> None:
     print(f"{'='*60}\n")
 
     engine = SwitchyardEngine()
-    game_info = engine.new_game(seed=SEED, time_budget=TIME_BUDGET, team_name=TEAM_NAME)
+    game_info = engine.new_game(seed=SEED, time_budget=TIME_BUDGET, team_name=TEAM_NAME, track="code")
     actual_seed: int = game_info.get("seed", 0)
 
     if SEED is None:
@@ -259,7 +259,7 @@ def main() -> None:
         flow.invoke(initial_message)
     finally:
         dashboard.stop()
-        score = engine.final_score()
+        score = engine.end_game()
 
         print(f"\n{'='*60}")
         print(f"  FINAL SCORE — {TEAM_NAME}")
