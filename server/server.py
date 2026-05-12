@@ -3,7 +3,7 @@ Switchyard Competition Leaderboard Server
 ==========================================
 
 Run from the repo root:
-    uvicorn competition.server:app --host 0.0.0.0 --port 8000 --reload
+    uvicorn server.server:app --host 0.0.0.0 --port 8000 --reload
 
 Endpoints:
     POST /api/submit        — accept a score from an agent run
@@ -40,14 +40,16 @@ def _load_scores() -> dict[str, list[dict]]:
             with open(_SCORES_FILE) as f:
                 data = json.load(f)
             return {"prompt": data.get("prompt", []), "code": data.get("code", [])}
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error loading scores from {_SCORES_FILE}: {e}")
+            
     return {"prompt": [], "code": []}
 
 
 def _save_scores() -> None:
     with open(_SCORES_FILE, "w") as f:
         json.dump(_store, f, indent=2)
+    print(f"  scores saved → {_SCORES_FILE}")
 
 app = FastAPI(title="Switchyard Leaderboard", docs_url=None, redoc_url=None)
 

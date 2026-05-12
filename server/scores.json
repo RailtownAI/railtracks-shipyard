@@ -1,0 +1,50 @@
+{
+  "prompt": [],
+  "code": [
+    {
+      "team_name": "Logan's Agent Almighty",
+      "seed": 1905613898,
+      "total_score": 909.68,
+      "time_consumed": 226,
+      "time_budget": 300,
+      "competitive": false,
+      "submitted_at": 1778609898.347498
+    },
+    {
+      "team_name": "Logan's Agent Almighty",
+      "seed": 1945257311,
+      "total_score": 902.38,
+      "time_consumed": 167,
+      "time_budget": 300,
+      "competitive": false,
+      "submitted_at": 1778609987.5193782
+    },
+    {
+      "team_name": "Logan's Agent Almighty",
+      "seed": 959626801,
+      "total_score": 1210.4,
+      "time_consumed": 105,
+      "time_budget": 300,
+      "competitive": false,
+      "submitted_at": 1778610038.1521575
+    },
+    {
+      "team_name": "Logan's Agent Almighty",
+      "seed": 1458815498,
+      "total_score": 1186.58,
+      "time_consumed": 243,
+      "time_budget": 300,
+      "competitive": false,
+      "submitted_at": 1778623893.2879364
+    },
+    {
+      "team_name": "Logan's Agent Almighty",
+      "seed": 1162061408,
+      "total_score": 1117.91,
+      "time_consumed": 300,
+      "time_budget": 300,
+      "competitive": false,
+      "submitted_at": 1778627712.1476808
+    }
+  ]
+}
