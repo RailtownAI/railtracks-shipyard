@@ -77,57 +77,31 @@ class GameDashboard:
     # ── Background thread ─────────────────────────────────────────────────────
 
     def _run(self) -> None:
-        if _is_colab():
-            self._run_colab()
-            return
+        renderer = self._render_colab if _is_colab() else self._render
         with Live(
-            self._render(),
+            renderer(),
             refresh_per_second=4,
             screen=True,
         ) as live:
             while not self._stop.is_set():
-                live.update(self._render())
+                live.update(renderer())
                 time.sleep(0.25)
-            live.update(self._render())  # final frame before exit
+            live.update(renderer())  # final frame before exit
 
-    def _run_colab(self) -> None:
-        seen = 0
-        while not self._stop.is_set():
-            session = self.engine._session
-            if session is not None:
-                log = session.action_log
-                for entry in log[seen:]:
-                    print(self._format_action(entry, session))
-                seen = len(log)
-            time.sleep(0.5)
-
-    def _format_action(self, entry: dict, session) -> str:
-        ts = entry["timestamp"]
-        action = entry["type"]
-        details = entry.get("details", {})
-        tr = session.time_remaining
-
-        if action == "negotiate":
-            item = details.get("item", "?").replace("_", " ")
-            act = details.get("action", "?")
-            outcome = details.get("outcome", "?").upper()
-            price = details.get("price") or details.get("counter_price")
-            price_str = f"  ${price:.2f}" if isinstance(price, (int, float)) else ""
-            qty = details.get("quantity", "")
-            qty_str = f" x{qty}" if qty else ""
-            return f"[t={ts:>3} | {tr:>3} left]  negotiate   {item:<22} {act:<7} {outcome}{price_str}{qty_str}"
-        elif action == "move_to_market":
-            dest = details.get("destination", "?")
-            return f"[t={ts:>3} | {tr:>3} left]  move        -> {dest}"
-        elif action == "get_market_dashboard":
-            market = details.get("market", "")
-            return f"[t={ts:>3} | {tr:>3} left]  dashboard   {market}"
-        elif action == "get_score":
-            score = details.get("total_score")
-            score_str = f"  total=${score:,.2f}" if score is not None else ""
-            return f"[t={ts:>3} | {tr:>3} left]  score{score_str}"
-        else:
-            return f"[t={ts:>3} | {tr:>3} left]  {action}"
+    def _render_colab(self):
+        """Single-column layout for Colab terminals."""
+        from rich.console import Group
+        session = self.engine._session
+        if session is None:
+            return Panel("[dim]Waiting for game session…[/dim]", title="SWITCHYARD")
+        return Group(
+            self._header(session),
+            self._state_panel(session),
+            self._score_panel(session),
+            self._objectives_panel(session),
+            self._inventory_panel(session),
+            self._actions_panel(session),
+        )
 
     # ── Layout assembly ───────────────────────────────────────────────────────
 
