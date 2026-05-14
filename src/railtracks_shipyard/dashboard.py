@@ -14,6 +14,14 @@ import threading
 import time
 from typing import TYPE_CHECKING, Optional
 
+
+def _is_colab() -> bool:
+    try:
+        import google.colab  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
 from rich import box
 from rich.layout import Layout
 from rich.live import Live
@@ -68,15 +76,17 @@ class GameDashboard:
     # ── Background thread ─────────────────────────────────────────────────────
 
     def _run(self) -> None:
+        colab = _is_colab()
+        renderer = self._render_colab if colab else self._render
         with Live(
-            self._render(),
-            refresh_per_second=4,
-            screen=True,
+            renderer(),
+            refresh_per_second=2 if colab else 4,
+            screen=not colab,
         ) as live:
             while not self._stop.is_set():
-                live.update(self._render())
-                time.sleep(0.25)
-            live.update(self._render())  # final frame before exit
+                live.update(renderer())
+                time.sleep(0.5 if colab else 0.25)
+            live.update(renderer())  # final frame before exit
 
     # ── Layout assembly ───────────────────────────────────────────────────────
 
@@ -116,6 +126,22 @@ class GameDashboard:
         root["feed"].update(self._feed_panel(session))
 
         return root
+
+    def _render_colab(self):
+        """Compact single-column layout for Colab / inline terminals."""
+        session = self.engine._session
+        if session is None:
+            return Panel("[dim]Waiting for game session…[/dim]", title="SWITCHYARD")
+
+        from rich.console import Group
+        return Group(
+            self._header(session),
+            self._state_panel(session),
+            self._score_panel(session),
+            self._objectives_panel(session),
+            self._inventory_panel(session),
+            self._actions_panel(session),
+        )
 
     # ── Individual panels ─────────────────────────────────────────────────────
 
