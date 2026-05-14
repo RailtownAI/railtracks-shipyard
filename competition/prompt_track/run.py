@@ -38,7 +38,7 @@ def main() -> None:
 
     # ── Start game ────────────────────────────────────────────────────────────
     engine = SwitchyardEngine()
-    game_info = engine.new_game(seed=seed, time_budget=time_budget, team_name=team_name, track="prompt")
+    game_info = engine.new_game(seed=seed, time_budget=100, team_name=team_name, track="prompt")
     actual_seed: int = game_info.get("seed", 0)
 
     if seed is None:

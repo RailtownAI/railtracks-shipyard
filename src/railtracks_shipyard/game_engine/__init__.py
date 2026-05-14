@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 from typing import Literal, Optional
 
-_DATA_ADDRESS = os.getenv("LEADERBOARD_URL", "http://localhost:8000/api/submit")
+_DATA_ADDRESS = os.getenv("LEADERBOARD_URL", "https://dogfish-stirring-subtly.ngrok-free.app/api/submit")
 
 from ._models import (
     Category,

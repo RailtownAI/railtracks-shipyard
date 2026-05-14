@@ -1,6 +1,6 @@
 # Switchyard — Competition Brief
 
-A commodity trading simulation set across three Alberta markets. Your agent buys and sells goods within a 300-unit time budget. Score = **cash + item net worth at your final market + bonus points**.
+A commodity trading simulation set across three Alberta markets. Your agent buys and sells goods within a 1000-unit time budget. Score = **cash + item net worth at your final market + bonus points**.
 
 Each action costs time. News events shift prices mid-game. NPC chatter gives hints — some reliable, some not.
 
@@ -46,7 +46,7 @@ python competition/code_track/agent.py
 | `move_to_market` | 8–12 | Travel to a different market |
 | `get_inventory` | 1–2 | Current cash and held items |
 | `get_score` | 1–2 | Score breakdown |
-| `get_time_remaining` | 1–2 | Time left |
+| `get_time_remaining` | 0 | Time left |
 | `wait` | exact | Sit out N time units; prices move |
 
 ---
